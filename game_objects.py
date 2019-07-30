@@ -2,7 +2,7 @@ import pygame
 from pygame.color import *
 from pygame.locals import *
 
-from create_assist import Animator, GameObject
+from create_assist import Animator
 
 # PLAYER GLOBAL VARIABLES
 JUMP_HEIGHT = 7
@@ -19,7 +19,8 @@ def dim(self):
     return (WIN_WIDTH, WIN_HEIGHT)
 
 @dim.setter
-def set_dim(self, val):
+def dim(self, val):
+    'setting'
     assert (type(val[0]), type(val[1])) == (int, int)
     self.WIN_WIDTH, self.WIN_HEIGHT = val
 
@@ -28,14 +29,14 @@ def del_dim(self):
     del self.WIN_WIDTH
     del self.WIN_HEIGHT
 
-class Player(GameObject):
+class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, arrow_list):
-        super().__init__(x, y, width, height)
+        super().__init__()
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.vel = 5
+        self.vel = 7
         self.arrow_list = arrow_list
         self.actions = {
             "jump" : False,
@@ -47,7 +48,6 @@ class Player(GameObject):
             "draw-bow" : False
         }
         self.jump_count = JUMP_HEIGHT
-        self.do_shoot = False
 
         #sprites
 
@@ -155,14 +155,12 @@ class Player(GameObject):
                 "x" : self.x,
                 "y" : self.y,
                 "width" : self.width,
-                "height" : self.height,
-                "arrow_list" : self.arrow_list
+                "height" : self.height
             }
 
             self.actions["draw-bow"] = True
 
             if (self.bow_jump_sprites.end_of_loop or self.bow_sprites.end_of_loop):
-                print("End-of")
 
                 if self.actions["left"]:
                     self.arrow_list.add(Arrow(orientation="flip-h", **temp_kwargs))
@@ -245,16 +243,16 @@ class Player(GameObject):
                 self.jump_count = JUMP_HEIGHT
             
 
-class Arrow(GameObject):
-    def __init__(self, x, y, width, height, arrow_list, orientation):
-        super().__init__(x, y, width, height)
+class Arrow(pygame.sprite.Sprite):
+    def __init__(self, x, y, width, height, orientation):
+        super().__init__()
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.arrow_list = arrow_list
         self.orientation = orientation
-        self._vel = 5
+        self._vel = 6
+        self.damage = 3
 
         # SPRITES
 
@@ -270,7 +268,8 @@ class Arrow(GameObject):
         return self._vel
 
     @vel.setter
-    def set_vel(self, val):
+    def vel(self, val):
+        'setting'
         if self.orientation == "flip-h" and self._vel > 0:
             self._vel = val * -1
         else:
@@ -288,4 +287,125 @@ class Arrow(GameObject):
         if self.x < WIN_WIDTH and self.x > 0:
             self.x += self.vel 
         else:
-            self.arrow_list.remove(self)
+            self.kill()
+
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y, width, height, arrow_list):
+        super().__init__()
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.arrow_list = arrow_list
+        self.actions = {
+            "dead" : False,
+            "walk" : True,
+            "attack" : False,
+            "hit" : False
+        }
+        self.damages = {
+            "arrow" : 0
+        }
+        self._orientation = "orig"
+        self._vel = 3
+        self.health = 10
+
+        # SPRITES
+
+        self.walk_sprites = Animator("sprites/Skeleton Walk.png", number_of=13, sheet=True, **PLAYER_COMMON_KWARGS)
+        self.attack_sprites = Animator("sprites/Skeleton Attack.png", number_of=18, sheet=True, **PLAYER_COMMON_KWARGS)
+        self.dead_sprites = Animator("sprites/Skeleton Dead.png", number_of=15, sheet=True, **PLAYER_COMMON_KWARGS)
+        self.hit_sprites = Animator("sprites/Skeleton Hit.png", number_of=8, sheet=True, **PLAYER_COMMON_KWARGS)
+
+
+    @property
+    def vel(self):
+        if self.orientation == "flip-h" and self._vel > 0:
+            self._vel = self._vel * -1
+        else:
+            self._vel = self._vel
+        
+        return self._vel
+
+    @vel.setter
+    def vel(self, val):
+        'setting'
+        if self.orientation == "flip-h" and self._vel > 0:
+            self._vel = val * -1
+        else:
+            self._vel = val
+
+    @property
+    def orientation(self):
+        return self._orientation
+
+    @orientation.setter
+    def orientation(self, val):
+        'setting'
+        params = ["orig", "flip-h"]
+
+        if val == 1:
+            if self._orientation == "orig":
+                self._orientation = "flip-h"
+            elif self._orientation == "flip-h":
+                self._orientation = "orig"
+
+        elif val in params:
+            self._orientation = val
+
+
+    @property
+    def image(self):
+        if self.actions["dead"]:
+            return next(self.dead_sprites[self.orientation])
+
+        elif self.actions["walk"]:
+            return next(self.walk_sprites[self.orientation])
+        
+        elif self.actions["hit"]:
+            return next(self.hit_sprites[self.orientation])
+
+        elif self.actions["attack"]:
+            return next(self.attack_sprites[self.orientation])
+
+    @property
+    def rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def update(self):
+        if not (self.x < WIN_WIDTH-self.width and self.x > self.width):
+            self.orientation = 1
+            self.actions["walk"] = True
+
+        if self.actions["walk"]:
+            self.x += self.vel
+
+        for _ in pygame.sprite.spritecollide(self, self.arrow_list, 1):
+            
+            if self.health > 0:
+                self.actions["hit"] = True
+                self.actions["dead"] = False
+                arrow_list = self.arrow_list.sprites()
+                if arrow_list:
+                    if self.damages["arrow"] <= 0:
+                        self.damages["arrow"] = arrow_list[0].damage
+                    self.health -= self.damages["arrow"]
+                else:
+                    self.health -= self.damages["arrow"]
+            else:
+                self.actions["dead"] = True
+                self.actions["hit"] = False
+
+            self.actions["walk"] = False
+
+        if self.dead_sprites.end_of_loop:
+            self.kill()
+
+        if self.hit_sprites.end_of_loop:
+            self.actions["hit"] = False
+            self.actions["walk"] = True
+            
+
+
+        

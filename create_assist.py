@@ -7,7 +7,8 @@ DELAY_FOR_MULTIPLE = 20
 
 class Animator(object):
 
-    def __init__(self, file_desc, format=None, number_of=1, start_from=0, flip_h=False, flip_v=False, multiple=False, loop=True, scale=None):
+    def __init__(self, file_desc, format=None, number_of=1, start_from=0, flip_h=False, flip_v=False, 
+    multiple=False, loop=True, scale=None, sheet=False):
  
         self.multiple = multiple
         self.selected_delay = datetime.datetime.now()
@@ -28,11 +29,28 @@ class Animator(object):
             self.full_file_desc = file_desc
 
         if self.multiple:
-            self.sprite_objects = {
-                "orig" : [[pygame.image.load(self.full_file_desc.format(mul_ent=ent, index=index)) \
-                    for index in range(start_from, number_of)] for ent in mul_ent]
-                }
+            if not sheet:
+                self.sprite_objects = {
+                    "orig" : [[pygame.image.load(self.full_file_desc.format(mul_ent=ent, index=index)) \
+                        for index in range(start_from, number_of)] for ent in mul_ent]
+                    }
 
+            else:
+                self.sprite_objects = {"orig": []}
+                for ent in mul_ent:
+                    temp_sprite_list = []
+                    sprite_sheet = pygame.image.load(self.full_file_desc.format(mul_ent=ent))
+                    sprite_width = sprite_sheet.get_width() // number_of
+                    sprite_height = sprite_sheet.get_height()
+                    x = 0
+                    for _ in range(number_of):
+                        sprite_collect = pygame.Surface((sprite_width, sprite_height), pygame.SRCALPHA, 32)
+                        sprite_collect.blit(sprite_sheet, (x, 0))
+                        temp_sprite_list.append(sprite_collect.copy())
+                        x -= sprite_width
+                    
+                    self.sprite_objects["orig"].append(temp_sprite_list)
+                        
 
             if scale == "2x": 
                 self.sprite_objects["orig"] = [list(map(pygame.transform.scale2x, l)) for l in self.sprite_objects["orig"]]
@@ -59,9 +77,24 @@ class Animator(object):
                     "orig" : [pygame.image.load(self.full_file_desc.format(index=index)) for index in range(start_from, number_of)]
                     }            
             else:
-                self.sprite_objects = {
-                    "orig" : [pygame.image.load(self.full_file_desc) for index in range(start_from, number_of)]
-                }
+                if not sheet:
+                    self.sprite_objects = {
+                        "orig" : [pygame.image.load(self.full_file_desc) for index in range(start_from, number_of)]
+                    }
+                
+                else:
+                    self.sprite_objects = {
+                        "orig" : []
+                    }
+                    sprite_sheet = pygame.image.load(self.full_file_desc)
+                    sprite_width = sprite_sheet.get_width() // number_of
+                    sprite_height = sprite_sheet.get_height()
+                    x = 0
+                    for _ in range(number_of):
+                        sprite_collect = pygame.Surface((sprite_width, sprite_height), pygame.SRCALPHA, 32)
+                        sprite_collect.blit(sprite_sheet, (x, 0))
+                        self.sprite_objects["orig"].append(sprite_collect.copy())
+                        x -= sprite_width
 
             if scale: 
                 self.sprite_objects["orig"] = list(map(pygame.transform.scale2x, self.sprite_objects["orig"])) 
@@ -133,15 +166,6 @@ class Animator(object):
         else: 
             return False
             
-
-class GameObject(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height):
-        super().__init__()
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-
 
 class Action(object):
     pass
