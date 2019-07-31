@@ -30,7 +30,7 @@ def del_dim(self):
     del self.WIN_HEIGHT
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height, arrow_list):
+    def __init__(self, x, y, width, height, arrow_list, enemy_list):
         super().__init__()
         self.x = x
         self.y = y
@@ -38,6 +38,8 @@ class Player(pygame.sprite.Sprite):
         self.height = height
         self.vel = 7
         self.arrow_list = arrow_list
+        self.enemy_list = enemy_list
+        self.health = 20
         self.actions = {
             "jump" : False,
             "left" : False,
@@ -48,72 +50,82 @@ class Player(pygame.sprite.Sprite):
             "draw-bow" : False
         }
         self.jump_count = JUMP_HEIGHT
+        self.orientation = "orig"
 
         #sprites
 
-        self.walk_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"run3"}, number_of=6, **PLAYER_COMMON_KWARGS)
+        self.walk_sprites = Animator("sprites/adventurer-{z}-0{index}-1.3.png", format={"z":"run"}, number_of=6, **PLAYER_COMMON_KWARGS)
         self.idle_sprites = Animator("sprites/adventurer-{mul_ent}-0{index}.png", format={"mul_ent":("idle", "idle-2")}, number_of=4, 
                             multiple=True, **PLAYER_COMMON_KWARGS)
         self.jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"jump"}, number_of=4, loop=False, **PLAYER_COMMON_KWARGS)
         self.fall_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"fall"}, number_of=2, **PLAYER_COMMON_KWARGS)
+        self.slide_sprites = Animator("sprites/adventurer-{z}-0{index}-1.3.png", format={"z":"slide"}, number_of=2, **PLAYER_COMMON_KWARGS)
         self.crouch_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"crouch"}, number_of=4, **PLAYER_COMMON_KWARGS)
-        self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, loop=True, **PLAYER_COMMON_KWARGS)
-        self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, loop=True, **PLAYER_COMMON_KWARGS)
+        self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, **PLAYER_COMMON_KWARGS)
+        self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, **PLAYER_COMMON_KWARGS)
 
-
-    def draw(self, window):
-        
-        
+    @property
+    def image(self):
         if self.actions["draw-bow"] and not self.actions["jump"]:
             if self.actions["left"]:
-                window.blit(next(self.bow_sprites["flip-h"]), (self.x,self.y))
+                return next(self.bow_sprites["flip-h"])
             else:
-                window.blit(next(self.bow_sprites["orig"]), (self.x,self.y))
+                return next(self.bow_sprites["orig"])
 
         elif self.actions["jump"]:
             if self.actions["draw-bow"]:
                 if self.actions["left"]:
-                    window.blit(next(self.bow_jump_sprites["flip-h"]), (self.x,self.y))
+                    return next(self.bow_jump_sprites["flip-h"])
                 else:
-                    window.blit(next(self.bow_jump_sprites["orig"]), (self.x,self.y))
+                    return next(self.bow_jump_sprites["orig"])
 
             else:
                 if self.actions["left"]:
-                    window.blit(next(self.jump_sprites["flip-h"]), (self.x,self.y))
+                    return next(self.jump_sprites["flip-h"])
                 else:
-                    window.blit(next(self.jump_sprites["orig"]), (self.x,self.y))
+                    return next(self.jump_sprites["orig"])
             
         elif self.actions["fall"]:
             if self.actions["draw-bow"]:
                 if self.actions["left"]:
-                    window.blit(next(self.bow_jump_sprites["flip-h"]), (self.x,self.y))
+                    return next(self.bow_jump_sprites["flip-h"])
                 else:
-                    window.blit(next(self.bow_jump_sprites["orig"]), (self.x,self.y))
+                    return next(self.bow_jump_sprites["orig"])
             else:
                 if self.actions["left"]:
-                    window.blit(next(self.fall_sprites["flip-h"]), (self.x,self.y))
+                    return next(self.fall_sprites["flip-h"])
                 else:
-                    window.blit(next(self.fall_sprites["orig"]), (self.x,self.y))
+                    return next(self.fall_sprites["orig"])
 
         elif self.actions["idle"]:
             if self.actions["left"]:
-                window.blit(next(self.idle_sprites["flip-h"]), (self.x,self.y))
+                return next(self.idle_sprites["flip-h"])
             else:
-                window.blit(next(self.idle_sprites["orig"]), (self.x,self.y))
+                return next(self.idle_sprites["orig"])
 
         elif self.actions["crouch"]:
             if self.actions["left"]:
-                window.blit(next(self.crouch_sprites["flip-h"]), (self.x,self.y))
+                return next(self.crouch_sprites["flip-h"])
             else:
-                window.blit(next(self.crouch_sprites["orig"]), (self.x,self.y))
+                return next(self.crouch_sprites["orig"])
         
         elif self.actions["left"]:
-            window.blit(next(self.walk_sprites["flip-h"]), (self.x,self.y))
+            if self.actions["crouch"]:
+                return next(self.slide_sprites["flip-h"])
+            else:
+                return next(self.walk_sprites["flip-h"])
 
         elif self.actions["right"]:
-            window.blit(next(self.walk_sprites["orig"]), (self.x,self.y))
+            if self.actions["crouch"]:
+                return next(self.slide_sprites["orig"])
+            else:
+                return next(self.walk_sprites["orig"])
 
-    def set_param(self):
+    @property
+    def rect(self):
+        return pygame.Rect(self.x, self.y, self.width, self.height)
+
+    def update(self):
 
         keys = pygame.key.get_pressed()
 
@@ -291,22 +303,21 @@ class Arrow(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height, arrow_list):
+    def __init__(self, x, y, width, height, arrow_list, mc_list):
         super().__init__()
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.arrow_list = arrow_list
+        self.mc_list = mc_list
         self.actions = {
             "dead" : False,
             "walk" : True,
             "attack" : False,
             "hit" : False
         }
-        self.damages = {
-            "arrow" : 0
-        }
+        self.damage = 5
         self._orientation = "orig"
         self._vel = 3
         self.health = 10
@@ -314,14 +325,14 @@ class Enemy(pygame.sprite.Sprite):
         # SPRITES
 
         self.walk_sprites = Animator("sprites/Skeleton Walk.png", number_of=13, sheet=True, **PLAYER_COMMON_KWARGS)
-        self.attack_sprites = Animator("sprites/Skeleton Attack.png", number_of=18, sheet=True, **PLAYER_COMMON_KWARGS)
+        self.attack_sprites = Animator("sprites/Skeleton Attack.png", number_of=18, sheet=True,**PLAYER_COMMON_KWARGS)
         self.dead_sprites = Animator("sprites/Skeleton Dead.png", number_of=15, sheet=True, **PLAYER_COMMON_KWARGS)
         self.hit_sprites = Animator("sprites/Skeleton Hit.png", number_of=8, sheet=True, **PLAYER_COMMON_KWARGS)
 
 
     @property
     def vel(self):
-        if self.orientation == "flip-h" and self._vel > 0:
+        if (self.orientation == "flip-h" and self._vel > 0) or (self.orientation == "orig" and self._vel < 0):
             self._vel = self._vel * -1
         else:
             self._vel = self._vel
@@ -331,7 +342,7 @@ class Enemy(pygame.sprite.Sprite):
     @vel.setter
     def vel(self, val):
         'setting'
-        if self.orientation == "flip-h" and self._vel > 0:
+        if (self.orientation == "flip-h" and self._vel > 0) or (self.orientation == "orig" and self._vel < 0):
             self._vel = val * -1
         else:
             self._vel = val
@@ -360,44 +371,61 @@ class Enemy(pygame.sprite.Sprite):
         if self.actions["dead"]:
             return next(self.dead_sprites[self.orientation])
 
+        elif self.actions["attack"]:
+            return next(self.attack_sprites[self.orientation])
+
         elif self.actions["walk"]:
             return next(self.walk_sprites[self.orientation])
         
         elif self.actions["hit"]:
             return next(self.hit_sprites[self.orientation])
 
-        elif self.actions["attack"]:
-            return next(self.attack_sprites[self.orientation])
 
     @property
     def rect(self):
+        if self.actions["attack"]:
+            return pygame.Rect(self.x-10, self.y-9, self.width, self.height)
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def update(self):
         if not (self.x < WIN_WIDTH-self.width and self.x > self.width):
-            self.orientation = 1
+            if self.x > WIN_WIDTH-self.width:
+                self.orientation = "flip-h"
+
+            if self.x < self.width:
+                self.orientation = "orig"
+
             self.actions["walk"] = True
+            self.actions["attack"] = False
+
 
         if self.actions["walk"]:
             self.x += self.vel
 
-        for _ in pygame.sprite.spritecollide(self, self.arrow_list, 1):
+        for arrow in pygame.sprite.spritecollide(self, self.arrow_list, 1):
             
             if self.health > 0:
                 self.actions["hit"] = True
                 self.actions["dead"] = False
-                arrow_list = self.arrow_list.sprites()
-                if arrow_list:
-                    if self.damages["arrow"] <= 0:
-                        self.damages["arrow"] = arrow_list[0].damage
-                    self.health -= self.damages["arrow"]
-                else:
-                    self.health -= self.damages["arrow"]
+                self.health -= arrow.damage
             else:
                 self.actions["dead"] = True
                 self.actions["hit"] = False
 
             self.actions["walk"] = False
+
+        for mc in pygame.sprite.spritecollide(self, self.mc_list, 0):
+            mc.health -= self.damage
+            self.actions["attack"] = True
+            self.actions["dead"] = False
+            self.actions["walk"] = False
+            self.actions["hit"] = False
+
+            if mc.actions["left"] and self.orientation == "flip-h" and mc.x > self.x:
+                self.orientation = "orig"
+            elif mc.actions["right"] and self.orientation == "orig" and mc.x < self.x:
+                self.orientation = "flip-h"
+
 
         if self.dead_sprites.end_of_loop:
             self.kill()
@@ -405,6 +433,11 @@ class Enemy(pygame.sprite.Sprite):
         if self.hit_sprites.end_of_loop:
             self.actions["hit"] = False
             self.actions["walk"] = True
+
+        if self.attack_sprites.end_of_loop:
+            if not pygame.sprite.spritecollide(self, self.mc_list, 0):
+                self.actions["attack"] = False
+                self.actions["walk"] = True
             
 
 

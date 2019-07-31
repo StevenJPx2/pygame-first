@@ -19,36 +19,42 @@ FRAMERATE = 24
 ENEMY_COUNT = 2
 WIN_WIDTH = 700
 WIN_HEIGHT = 500
+GROUND_LEVEL = 390
 dim = (WIN_WIDTH, WIN_HEIGHT)
 
 win = pygame.display.set_mode(dim)
 pygame.display.set_caption("First Game")
 clock = pygame.time.Clock()
-bg = pygame.image.load("sprites/Background.png")
+bg = pygame.transform.scale(pygame.image.load("sprites/Background.png"), dim)
 game_objects.dim = dim
 
 
 
 def redraw_game_window():
-    man.set_param()
     win.blit(bg, (0,0))
-    man.draw(win)
+    sprites_list.update()
+    sprites_list.draw(win)
     arrow_list.update()
     arrow_list.draw(win)
-    enemy_list.update()
-    enemy_list.draw(win)
 
     pygame.display.update()
 
 
 arrow_list = pygame.sprite.Group()
 enemy_list = pygame.sprite.Group()
+mc_list = pygame.sprite.Group()
+sprites_list = pygame.sprite.Group()
 
 
 #mainloop
-man = Player(200, 410, 64, 64, arrow_list)
+man = Player(200, GROUND_LEVEL, 64, 64, arrow_list, enemy_list)
+sprites_list.add(man)
+mc_list.add(man)
+
 for _ in range(ENEMY_COUNT):
-    enemy_list.add(Enemy(random.randint(40, 660), 410, 64, 64, arrow_list))
+    __enemy = Enemy(random.randint(40, 660), GROUND_LEVEL, 64, 64, arrow_list, mc_list)
+    enemy_list.add(__enemy)
+    sprites_list.add(__enemy)
 run = True
 while run:
     clock.tick(FRAMERATE)
