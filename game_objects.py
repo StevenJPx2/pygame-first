@@ -5,7 +5,8 @@ from pygame.locals import *
 from create_assist import Animator
 
 # PLAYER GLOBAL VARIABLES
-JUMP_HEIGHT = 7
+JUMP_HEIGHT = 10
+SLIDE_COUNT = 20
 PLAYER_COMMON_KWARGS = {
     "flip_h" : True,
     "scale" : "2x"
@@ -36,7 +37,7 @@ class Player(pygame.sprite.Sprite):
         self.y = y
         self.width = width
         self.height = height
-        self.vel = 7
+        self._vel = 7
         self.arrow_list = arrow_list
         self.enemy_list = enemy_list
         self.health = 20
@@ -45,11 +46,14 @@ class Player(pygame.sprite.Sprite):
             "left" : False,
             "right" : False,
             "fall" : False,
+            "stand" : False,
+            "slide" : False,
             "crouch" : False,
             "idle" : False,
             "draw-bow" : False
         }
         self.jump_count = JUMP_HEIGHT
+        self.slide_count = SLIDE_COUNT
         self.orientation = "orig"
 
         #sprites
@@ -61,65 +65,63 @@ class Player(pygame.sprite.Sprite):
         self.fall_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"fall"}, number_of=2, **PLAYER_COMMON_KWARGS)
         self.slide_sprites = Animator("sprites/adventurer-{z}-0{index}-1.3.png", format={"z":"slide"}, number_of=2, **PLAYER_COMMON_KWARGS)
         self.crouch_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"crouch"}, number_of=4, **PLAYER_COMMON_KWARGS)
+        self.smrslt_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"smrslt"}, number_of=4, **PLAYER_COMMON_KWARGS)
+        self.stand_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"stand"}, number_of=3, **PLAYER_COMMON_KWARGS)
         self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, **PLAYER_COMMON_KWARGS)
         self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, **PLAYER_COMMON_KWARGS)
+
+
+    @property
+    def vel(self):
+        if (self.actions["left"] and self._vel > 0) or (self.actions["right"] and self._vel < 0):
+            self._vel = self._vel * -1
+        else:
+            self._vel = self._vel
+        
+        return self._vel
+
+    @vel.setter
+    def vel(self, val):
+        'setting'
+        if (self.actions["left"] and self._vel > 0) or (self.actions["right"] and self._vel < 0):
+            self._vel = val * -1
+        else:
+            self._vel = val
 
     @property
     def image(self):
         if self.actions["draw-bow"] and not self.actions["jump"]:
-            if self.actions["left"]:
-                return next(self.bow_sprites["flip-h"])
-            else:
-                return next(self.bow_sprites["orig"])
+            return next(self.bow_sprites[self.orientation])
 
         elif self.actions["jump"]:
             if self.actions["draw-bow"]:
-                if self.actions["left"]:
-                    return next(self.bow_jump_sprites["flip-h"])
-                else:
-                    return next(self.bow_jump_sprites["orig"])
+                return next(self.bow_jump_sprites[self.orientation])
 
             else:
-                if self.actions["left"]:
-                    return next(self.jump_sprites["flip-h"])
-                else:
-                    return next(self.jump_sprites["orig"])
+                if self.jump_sprites.end_of_loop:
+                    return next(self.smrslt_sprites[self.orientation])
+                return next(self.jump_sprites[self.orientation])
             
         elif self.actions["fall"]:
             if self.actions["draw-bow"]:
-                if self.actions["left"]:
-                    return next(self.bow_jump_sprites["flip-h"])
-                else:
-                    return next(self.bow_jump_sprites["orig"])
+                return next(self.bow_jump_sprites[self.orientation])
             else:
-                if self.actions["left"]:
-                    return next(self.fall_sprites["flip-h"])
-                else:
-                    return next(self.fall_sprites["orig"])
+                return next(self.fall_sprites[self.orientation])
 
         elif self.actions["idle"]:
-            if self.actions["left"]:
-                return next(self.idle_sprites["flip-h"])
-            else:
-                return next(self.idle_sprites["orig"])
+            return next(self.idle_sprites[self.orientation])
 
         elif self.actions["crouch"]:
-            if self.actions["left"]:
-                return next(self.crouch_sprites["flip-h"])
-            else:
-                return next(self.crouch_sprites["orig"])
-        
-        elif self.actions["left"]:
-            if self.actions["crouch"]:
-                return next(self.slide_sprites["flip-h"])
-            else:
-                return next(self.walk_sprites["flip-h"])
+            return next(self.crouch_sprites[self.orientation])
 
-        elif self.actions["right"]:
-            if self.actions["crouch"]:
-                return next(self.slide_sprites["orig"])
-            else:
-                return next(self.walk_sprites["orig"])
+        elif self.actions["slide"]:
+            return next(self.slide_sprites[self.orientation])
+
+        elif self.actions["stand"]:
+            return next(self.stand_sprites[self.orientation])
+        
+        else:
+            return next(self.walk_sprites[self.orientation])
 
     @property
     def rect(self):
@@ -128,13 +130,45 @@ class Player(pygame.sprite.Sprite):
     def update(self):
 
         keys = pygame.key.get_pressed()
+        
+        
+        # SLIDE LEFT
+
+        if (all([keys[K_LEFT], keys[K_DOWN]]) or all([keys[K_a], keys[K_LSHIFT]])) and self.x > self.vel \
+             and not (self.actions["jump"] or self.actions["fall"]):
+            self.actions["slide"] = True
+            self.orientation = "flip-h"
+            self.actions["left"] = True
+            self.x += self.vel
+            self.actions["right"] = False
+            self.actions["idle"] = False
+            self.actions["crouch"] = False
+            self.actions["draw-bow"] = False
+
 
         # LEFT
 
-        if (keys[K_LEFT] or keys[K_a]) and self.x > self.vel:
-            self.x -= self.vel
+        elif (keys[K_LEFT] or keys[K_a]) and self.x > self.vel:
             self.actions["left"] = True
+            self.x += self.vel
+            self.orientation = "flip-h"
             self.actions["right"] = False
+            self.actions["idle"] = False
+            self.actions["crouch"] = False
+            self.actions["slide"] = False
+            self.actions["draw-bow"] = False
+
+
+        # SLIDE RIGHT
+
+
+        elif (all([keys[K_RIGHT], keys[K_DOWN]]) or all([keys[K_d], keys[K_LSHIFT]])) and self.x < WIN_WIDTH - self.width - self.vel \
+            and not (self.actions["jump"] or self.actions["fall"]):
+            self.actions["slide"] = True
+            self.actions["right"] = True
+            self.x += self.vel
+            self.orientation = "orig"
+            self.actions["left"] = False
             self.actions["idle"] = False
             self.actions["crouch"] = False
             self.actions["draw-bow"] = False
@@ -142,18 +176,24 @@ class Player(pygame.sprite.Sprite):
         # RIGHT
 
         elif (keys[K_RIGHT] or keys[K_d]) and self.x < WIN_WIDTH - self.width - self.vel:
-            self.x += self.vel
             self.actions["right"] = True
+            self.x += self.vel
+            self.orientation = "orig"
             self.actions["left"] = False
             self.actions["idle"] = False
             self.actions["crouch"] = False
+            self.actions["slide"] = False
             self.actions["draw-bow"] = False
+
+
 
 
         # CROUCH
 
         elif (keys[K_DOWN] or keys[K_LSHIFT]) and not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["crouch"] = True
+            if not self.actions["stand"]:
+                self.actions["crouch"] = True
+
             self.actions["jump"] = False
             self.actions["idle"] = False
             self.actions["draw-bow"] = False
@@ -174,16 +214,16 @@ class Player(pygame.sprite.Sprite):
 
             if (self.bow_jump_sprites.end_of_loop or self.bow_sprites.end_of_loop):
 
-                if self.actions["left"]:
-                    self.arrow_list.add(Arrow(orientation="flip-h", **temp_kwargs))
-
-                else:
-                    self.arrow_list.add(Arrow(orientation="orig", **temp_kwargs))
+                self.arrow_list.add(Arrow(orientation=self.orientation, **temp_kwargs))
 
                 self.actions["draw-bow"] = False
 
 
         # IDLE
+
+        elif self.actions["stand"] and self.stand_sprites.end_of_loop:
+            self.actions["stand"] = False
+            self.actions["idle"] = True
 
         elif not (self.actions["jump"] or self.actions["fall"]):
             self.actions["idle"] = True
@@ -384,7 +424,7 @@ class Enemy(pygame.sprite.Sprite):
     @property
     def rect(self):
         if self.actions["attack"]:
-            return pygame.Rect(self.x-10, self.y-9, self.width, self.height)
+            return pygame.Rect(self.x-10, self.y-9, self.width+8, self.height)
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def update(self):
@@ -415,7 +455,7 @@ class Enemy(pygame.sprite.Sprite):
             self.actions["walk"] = False
 
         for mc in pygame.sprite.spritecollide(self, self.mc_list, 0):
-            mc.health -= self.damage
+            print(mc.health)
             self.actions["attack"] = True
             self.actions["dead"] = False
             self.actions["walk"] = False
@@ -435,9 +475,15 @@ class Enemy(pygame.sprite.Sprite):
             self.actions["walk"] = True
 
         if self.attack_sprites.end_of_loop:
-            if not pygame.sprite.spritecollide(self, self.mc_list, 0):
+            mc_list = pygame.sprite.spritecollide(self, self.mc_list, 0)
+            if not mc_list:
                 self.actions["attack"] = False
                 self.actions["walk"] = True
+
+            else:
+                mc_list[0].health -= self.damage
+            
+            
             
 
 
