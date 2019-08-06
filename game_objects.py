@@ -2,11 +2,12 @@ import pygame
 from pygame.color import *
 from pygame.locals import *
 
-from create_assist import Animator
+from create_assist import Animator, Action
 
 # PLAYER GLOBAL VARIABLES
-JUMP_HEIGHT = 10
+JUMP_HEIGHT = 7
 SLIDE_COUNT = 20
+SLIDE_READY = 20
 PLAYER_COMMON_KWARGS = {
     "flip_h" : True,
     "scale" : "2x"
@@ -41,19 +42,10 @@ class Player(pygame.sprite.Sprite):
         self.arrow_list = arrow_list
         self.enemy_list = enemy_list
         self.health = 20
-        self.actions = {
-            "jump" : False,
-            "left" : False,
-            "right" : False,
-            "fall" : False,
-            "stand" : False,
-            "slide" : False,
-            "crouch" : False,
-            "idle" : False,
-            "draw-bow" : False
-        }
+        self.actions = Action()
         self.jump_count = JUMP_HEIGHT
         self.slide_count = SLIDE_COUNT
+        self.slide_ready = SLIDE_READY
         self.orientation = "orig"
 
         #sprites
@@ -69,6 +61,8 @@ class Player(pygame.sprite.Sprite):
         self.stand_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"stand"}, number_of=3, **PLAYER_COMMON_KWARGS)
         self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, **PLAYER_COMMON_KWARGS)
         self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, **PLAYER_COMMON_KWARGS)
+        self.hurt_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"hurt"}, number_of=2, loop=False, **PLAYER_COMMON_KWARGS)
+        self.die_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"die"}, number_of=7, loop=False, **PLAYER_COMMON_KWARGS)
 
 
     @property
@@ -90,6 +84,18 @@ class Player(pygame.sprite.Sprite):
 
     @property
     def image(self):
+
+        if self.actions["hurt"]:
+            if self.hurt_sprites.end_of_loop:
+                self.actions["hurt"] = False
+            return next(self.hurt_sprites[self.orientation])
+
+        if self.actions["dead"]:
+            if self.die_sprites.end_of_loop:
+                self.kill()
+                # raise SystemExit
+            return next(self.die_sprites[self.orientation])
+
         if self.actions["draw-bow"] and not self.actions["jump"]:
             return next(self.bow_sprites[self.orientation])
 
@@ -99,7 +105,10 @@ class Player(pygame.sprite.Sprite):
 
             else:
                 if self.jump_sprites.end_of_loop:
-                    return next(self.smrslt_sprites[self.orientation])
+                    if self.smrslt_sprites.end_of_loop:
+                        self.jump_sprites.refresh()
+                    else:
+                        return next(self.smrslt_sprites[self.orientation])
                 return next(self.jump_sprites[self.orientation])
             
         elif self.actions["fall"]:
@@ -114,12 +123,12 @@ class Player(pygame.sprite.Sprite):
         elif self.actions["crouch"]:
             return next(self.crouch_sprites[self.orientation])
 
+        elif self.actions["stand"]:
+            return next(self.stand_sprites[self.orientation])
+
         elif self.actions["slide"]:
             return next(self.slide_sprites[self.orientation])
 
-        elif self.actions["stand"]:
-            return next(self.stand_sprites[self.orientation])
-        
         else:
             return next(self.walk_sprites[self.orientation])
 
@@ -128,15 +137,40 @@ class Player(pygame.sprite.Sprite):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def update(self):
+        if self.actions.slide or self.actions.walk:
+            if self.x < WIN_WIDTH - self.width - self.vel and self.x > self.vel:
+                self.x += self.vel
 
-        keys = pygame.key.get_pressed()
         
+
+
+    def update(self):        
+        
+        
+        if (self.health <= 0):
+            self.actions["dead"] = True
+            self.actions["hurt"] = False
+            self.actions["left"] = False
+            self.actions["right"] = False
+            self.actions["jump"] = False
+            self.actions["fall"] = False
+            self.actions["crouch"] = False
+            self.actions["draw-bow"] = False
+
         
         # SLIDE LEFT
 
-        if (all([keys[K_LEFT], keys[K_DOWN]]) or all([keys[K_a], keys[K_LSHIFT]])) and self.x > self.vel \
-             and not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["slide"] = True
+        elif (all([keys[K_LEFT], keys[K_DOWN]]) or all([keys[K_a], keys[K_LSHIFT]])) and self.x > self.vel \
+             and not (self.actions["jump"] or self.actions["fall"] or self.actions["stand"]) and self.slide_ready == SLIDE_READY:
+            if self.slide_count > 0:
+                self.actions["slide"] = True
+                self.slide_count -= 1
+            else:
+                self.slide_ready = 0
+                self.slide_count = SLIDE_COUNT
+                self.actions["slide"] = False
+                self.actions["stand"] = True
+
             self.orientation = "flip-h"
             self.actions["left"] = True
             self.x += self.vel
@@ -148,7 +182,7 @@ class Player(pygame.sprite.Sprite):
 
         # LEFT
 
-        elif (keys[K_LEFT] or keys[K_a]) and self.x > self.vel:
+        elif (keys[K_LEFT] or keys[K_a]) and self.x > self.vel and not self.actions["stand"]:
             self.actions["left"] = True
             self.x += self.vel
             self.orientation = "flip-h"
@@ -163,8 +197,15 @@ class Player(pygame.sprite.Sprite):
 
 
         elif (all([keys[K_RIGHT], keys[K_DOWN]]) or all([keys[K_d], keys[K_LSHIFT]])) and self.x < WIN_WIDTH - self.width - self.vel \
-            and not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["slide"] = True
+            and not (self.actions["jump"] or self.actions["fall"] or self.actions["stand"])  and self.slide_ready == SLIDE_READY:
+            if self.slide_count > 0:
+                self.actions["slide"] = True
+                self.slide_count -= 1
+            else:
+                self.slide_ready = 0
+                self.slide_count = SLIDE_COUNT
+                self.actions["slide"] = False
+                self.actions["stand"] = True
             self.actions["right"] = True
             self.x += self.vel
             self.orientation = "orig"
@@ -175,7 +216,7 @@ class Player(pygame.sprite.Sprite):
 
         # RIGHT
 
-        elif (keys[K_RIGHT] or keys[K_d]) and self.x < WIN_WIDTH - self.width - self.vel:
+        elif (keys[K_RIGHT] or keys[K_d]) and self.x < WIN_WIDTH - self.width - self.vel and not self.actions["stand"]:
             self.actions["right"] = True
             self.x += self.vel
             self.orientation = "orig"
@@ -293,6 +334,11 @@ class Player(pygame.sprite.Sprite):
 
 
                 self.jump_count = JUMP_HEIGHT
+        
+        if self.slide_ready < SLIDE_READY:
+            self.slide_ready += 2
+        elif self.slide_ready > SLIDE_READY:
+            self.slide_ready = SLIDE_READY
             
 
 class Arrow(pygame.sprite.Sprite):
@@ -476,12 +522,15 @@ class Enemy(pygame.sprite.Sprite):
 
         if self.attack_sprites.end_of_loop:
             mc_list = pygame.sprite.spritecollide(self, self.mc_list, 0)
+            
             if not mc_list:
                 self.actions["attack"] = False
                 self.actions["walk"] = True
 
             else:
-                mc_list[0].health -= self.damage
+                mc = mc_list[0]
+                mc.health -= self.damage
+                mc.actions["hurt"] = True
             
             
             

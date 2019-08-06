@@ -4,6 +4,7 @@ import random
 import time
 
 import pygame
+from pygame.locals import *
 import pymunk
 
 import game_objects
@@ -63,6 +64,40 @@ while run:
         keys = pygame.key.get_pressed()
         if event.type == pygame.QUIT or keys[pygame.K_ESCAPE]:
             run = False
+        else:
+            if all([keys[K_LEFT], keys[K_DOWN]]) or all([keys[K_a], keys[K_LSHIFT]]):
+                man.actions.slide = True
+                man.orientation = "flip-h"
+
+            elif all([keys[K_RIGHT], keys[K_DOWN]]) or all([keys[K_d], keys[K_LSHIFT]]):
+                man.actions.slide = True
+                man.orientation = "orig"
+
+            elif keys[K_LEFT] or keys[K_a]:
+                man.actions.walk = True
+                man.orientation = "orig"
+
+            elif keys[K_RIGHT] or keys[K_d]:
+                man.actions.walk = True
+                man.orientation = "flip-h"
+                
+            
+            elif keys[K_DOWN] or keys[K_LSHIFT]:
+                man.actions.crouch = True
+
+            elif keys[K_SPACE] and (keys[K_UP] or keys[K_w]):
+                man.jump_draw_bow = True
+
+            elif keys[K_SPACE]:
+                man.draw_bow = True
+
+            elif keys[K_UP] or keys[K_w]:
+                man.jump = True
+
+            else:
+                man.idle = True
+
+            
             
     redraw_game_window()
 
