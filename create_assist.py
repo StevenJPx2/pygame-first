@@ -179,6 +179,8 @@ class Animator(object):
 class Action(object):
     def __getattribute__(self, attr):
         __dict__ = super(Action, self).__getattribute__('__dict__')
+        if attr == "__dict__":
+            return __dict__
         return attr in __dict__
     def __setattr__(self, attr, value):
         if value:
