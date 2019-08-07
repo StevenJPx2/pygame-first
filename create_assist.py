@@ -158,17 +158,35 @@ class Animator(object):
             out = iter(self.sprite_orientation)
             return out
 
+    def refresh(self): self.sprite_objects_iterate = self.__return_iter()
+        
     @property
     def end_of_loop(self):
         if not self.sprite_objects_iterate.list:
-            self.sprite_objects_iterate = self.__return_iter()
+            if self.loop: self.sprite_objects_iterate = self.__return_iter()
             return True  
+        else: 
+            return False
+
+    @property
+    def pos(self):
+        if not self.sprite_objects_iterate.list:
+            return self.sprite_objects_iterate.pos
         else: 
             return False
             
 
 class Action(object):
-    pass
+    def __getattribute__(self, attr):
+        __dict__ = super(Action, self).__getattribute__('__dict__')
+        if attr == "__dict__":
+            return __dict__
+        return attr in __dict__
+    def __setattr__(self, attr, value):
+        if value:
+            super(Action, self).__setattr__('__dict__', {attr: value})
+
+
 
 class Background(object):
     def __init__(self, dim=(500,500), caption='', image=None):
@@ -200,6 +218,11 @@ class typed_list(list):
         iter_obj_list = list(self.iter_obj)
         self.iter_obj = iter(iter_obj_list)
         return iter_obj_list
+
+    @property
+    def pos(self):
+        return self.elements.index(self.list[0])
+
     
     def __iter__(self):
         super().__iter__()

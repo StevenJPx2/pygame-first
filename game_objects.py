@@ -1,12 +1,13 @@
 import pygame
 from pygame.color import *
-from pygame.locals import *
+from math import pow
 
-from create_assist import Animator
+from create_assist import Animator, Action
 
 # PLAYER GLOBAL VARIABLES
-JUMP_HEIGHT = 10
+JUMP_HEIGHT = 7
 SLIDE_COUNT = 20
+SLIDE_READY = 20
 PLAYER_COMMON_KWARGS = {
     "flip_h" : True,
     "scale" : "2x"
@@ -31,29 +32,20 @@ def del_dim(self):
     del self.WIN_HEIGHT
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height, arrow_list, enemy_list):
+    def __init__(self, x, y, width, height, arrow_list):
         super().__init__()
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self._vel = 7
+        self.vel = 7
         self.arrow_list = arrow_list
-        self.enemy_list = enemy_list
         self.health = 20
-        self.actions = {
-            "jump" : False,
-            "left" : False,
-            "right" : False,
-            "fall" : False,
-            "stand" : False,
-            "slide" : False,
-            "crouch" : False,
-            "idle" : False,
-            "draw-bow" : False
-        }
+        self.actions = Action()
+        self.s_actions = Action()
         self.jump_count = JUMP_HEIGHT
         self.slide_count = SLIDE_COUNT
+        self.slide_ready = SLIDE_READY
         self.orientation = "orig"
 
         #sprites
@@ -69,57 +61,47 @@ class Player(pygame.sprite.Sprite):
         self.stand_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"stand"}, number_of=3, **PLAYER_COMMON_KWARGS)
         self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, **PLAYER_COMMON_KWARGS)
         self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, **PLAYER_COMMON_KWARGS)
-
-
-    @property
-    def vel(self):
-        if (self.actions["left"] and self._vel > 0) or (self.actions["right"] and self._vel < 0):
-            self._vel = self._vel * -1
-        else:
-            self._vel = self._vel
-        
-        return self._vel
-
-    @vel.setter
-    def vel(self, val):
-        'setting'
-        if (self.actions["left"] and self._vel > 0) or (self.actions["right"] and self._vel < 0):
-            self._vel = val * -1
-        else:
-            self._vel = val
+        self.hurt_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"hurt"}, number_of=2, loop=False, **PLAYER_COMMON_KWARGS)
+        self.die_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"die"}, number_of=7, loop=False, **PLAYER_COMMON_KWARGS)
 
     @property
     def image(self):
-        if self.actions["draw-bow"] and not self.actions["jump"]:
+
+        if self.actions.hurt:
+            return next(self.hurt_sprites[self.orientation])
+
+        if self.actions.dead:
+            return next(self.die_sprites[self.orientation])
+
+        if self.actions.draw_bow:
             return next(self.bow_sprites[self.orientation])
 
-        elif self.actions["jump"]:
-            if self.actions["draw-bow"]:
-                return next(self.bow_jump_sprites[self.orientation])
+        elif self.actions.jump_draw_bow:
+            return next(self.bow_jump_sprites[self.orientation])
 
-            else:
-                if self.jump_sprites.end_of_loop:
+        elif self.actions.jump:
+            if self.jump_sprites.end_of_loop:
+                if self.smrslt_sprites.end_of_loop:
+                    self.jump_sprites.refresh()
+                else:
                     return next(self.smrslt_sprites[self.orientation])
-                return next(self.jump_sprites[self.orientation])
+            return next(self.jump_sprites[self.orientation])
             
-        elif self.actions["fall"]:
-            if self.actions["draw-bow"]:
-                return next(self.bow_jump_sprites[self.orientation])
-            else:
-                return next(self.fall_sprites[self.orientation])
+        elif self.actions.fall:
+            return next(self.fall_sprites[self.orientation])
 
-        elif self.actions["idle"]:
+        elif self.actions.idle:
             return next(self.idle_sprites[self.orientation])
 
-        elif self.actions["crouch"]:
+        elif self.actions.crouch:
             return next(self.crouch_sprites[self.orientation])
 
-        elif self.actions["slide"]:
+        elif self.actions.stand:
+            return next(self.stand_sprites[self.orientation])
+
+        elif self.actions.slide:
             return next(self.slide_sprites[self.orientation])
 
-        elif self.actions["stand"]:
-            return next(self.stand_sprites[self.orientation])
-        
         else:
             return next(self.walk_sprites[self.orientation])
 
@@ -128,172 +110,53 @@ class Player(pygame.sprite.Sprite):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
     def update(self):
+        if self.health <= 0:
+            self.actions.dead = True
+            self.s_actions.none = True
+            return
 
-        keys = pygame.key.get_pressed()
-        
-        
-        # SLIDE LEFT
+        if self.s_actions.left:
+            if self.x > self.vel:
+                self.x -= self.vel
+                self.orientation = "flip-h"
 
-        if (all([keys[K_LEFT], keys[K_DOWN]]) or all([keys[K_a], keys[K_LSHIFT]])) and self.x > self.vel \
-             and not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["slide"] = True
-            self.orientation = "flip-h"
-            self.actions["left"] = True
-            self.x += self.vel
-            self.actions["right"] = False
-            self.actions["idle"] = False
-            self.actions["crouch"] = False
-            self.actions["draw-bow"] = False
+        elif self.s_actions.right:
+            if self.x < WIN_WIDTH - self.width - self.vel:
+                self.x += self.vel
+                self.orientation = "orig"
 
+        if any([self.actions.fall, self.actions.jump_draw_bow, self.actions.jump]):
+            if self.jump_count >= -JUMP_HEIGHT:
+                neg = -1 if self.jump_count < 0 else 1
+                self.y -= pow(self.jump_count, 2) * 0.5 * neg
+                self.jump_count -= 1
 
-        # LEFT
+            else:
+                self.s_actions.none = True
+                self.actions.idle = True
+                self.jump_count = JUMP_HEIGHT
 
-        elif (keys[K_LEFT] or keys[K_a]) and self.x > self.vel:
-            self.actions["left"] = True
-            self.x += self.vel
-            self.orientation = "flip-h"
-            self.actions["right"] = False
-            self.actions["idle"] = False
-            self.actions["crouch"] = False
-            self.actions["slide"] = False
-            self.actions["draw-bow"] = False
-
-
-        # SLIDE RIGHT
-
-
-        elif (all([keys[K_RIGHT], keys[K_DOWN]]) or all([keys[K_d], keys[K_LSHIFT]])) and self.x < WIN_WIDTH - self.width - self.vel \
-            and not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["slide"] = True
-            self.actions["right"] = True
-            self.x += self.vel
-            self.orientation = "orig"
-            self.actions["left"] = False
-            self.actions["idle"] = False
-            self.actions["crouch"] = False
-            self.actions["draw-bow"] = False
-
-        # RIGHT
-
-        elif (keys[K_RIGHT] or keys[K_d]) and self.x < WIN_WIDTH - self.width - self.vel:
-            self.actions["right"] = True
-            self.x += self.vel
-            self.orientation = "orig"
-            self.actions["left"] = False
-            self.actions["idle"] = False
-            self.actions["crouch"] = False
-            self.actions["slide"] = False
-            self.actions["draw-bow"] = False
-
-
-
-
-        # CROUCH
-
-        elif (keys[K_DOWN] or keys[K_LSHIFT]) and not (self.actions["jump"] or self.actions["fall"]):
-            if not self.actions["stand"]:
-                self.actions["crouch"] = True
-
-            self.actions["jump"] = False
-            self.actions["idle"] = False
-            self.actions["draw-bow"] = False
-
-
-        # DRAW-BOW 
-
-
-        elif keys[K_SPACE]:
-            temp_kwargs = {
-                "x" : self.x,
-                "y" : self.y,
-                "width" : self.width,
-                "height" : self.height
-            }
-
-            self.actions["draw-bow"] = True
-
+        if self.actions.jump_draw_bow or self.actions.draw_bow:
             if (self.bow_jump_sprites.end_of_loop or self.bow_sprites.end_of_loop):
+                temp_kwargs = {
+                    "x" : self.x,
+                    "y" : self.y,
+                    "width" : self.width,
+                    "height" : self.height,
+                    "orientation" : self.orientation
+                }
+                self.arrow_list.add(Arrow(**temp_kwargs))
+                if self.jump_count != JUMP_HEIGHT:
+                    if self.jump_count > 0: self.actions.jump = True
+                    else: self.actions.fall = True
+                else:
+                    self.actions.idle = True
 
-                self.arrow_list.add(Arrow(orientation=self.orientation, **temp_kwargs))
+        if self.actions.dead and self.die_sprites.end_of_loop:
+            self.kill()
 
-                self.actions["draw-bow"] = False
-
-
-        # IDLE
-
-        elif self.actions["stand"] and self.stand_sprites.end_of_loop:
-            self.actions["stand"] = False
-            self.actions["idle"] = True
-
-        elif not (self.actions["jump"] or self.actions["fall"]):
-            self.actions["idle"] = True
-            self.actions["draw-bow"] = False
-
-        
-        else: 
-            self.actions["idle"] = True
-            self.actions["draw-bow"] = False
-
-
-
-        # FALL
-        # NEED TO IMPROVE THE ALGORITHM
-        
-        if self.actions["fall"]:
-            if self.jump_count >= -JUMP_HEIGHT:
-                neg = 1
-                if self.jump_count < 0:
-                    neg = -1
-                    self.actions["fall"] = True
-                    self.actions["jump"] = False
-                    self.actions["crouch"] = False
-                    self.actions["idle"] = False
-                    self.actions["draw-bow"] = False
-
-
-
-                self.y -= (self.jump_count ** 2) * 0.5 * neg
-                self.jump_count -= 1
-            else:
-                self.actions["fall"] = False
-
-                self.jump_count = JUMP_HEIGHT
-        
-        # JUMP
-
-        elif not self.actions["jump"]:
-            if keys[K_UP] or keys[K_w]:
-                self.actions["jump"] = True
-                self.actions["crouch"] = False
-                self.actions["idle"] = False
-                # self.actions["draw-bow"] = False
-
-                
-        else:
-            if self.jump_count >= -JUMP_HEIGHT:
-                neg = 1
-                if self.jump_count < 0:
-                    neg = -1
-                    self.actions["fall"] = True
-                    self.actions["jump"] = False
-                    self.actions["crouch"] = False
-                    self.actions["idle"] = False
-                    self.actions["draw-bow"] = False
-
-                    
-                self.y -= (self.jump_count ** 2) * 0.5 * neg
-                self.jump_count -= 1
-
-            else:
-                self.actions["fall"] = False
-                self.actions["idle"] = False
-                self.actions["crouch"] = False
-                self.actions["draw-bow"] = False
-
-
-
-                self.jump_count = JUMP_HEIGHT
-            
+        if self.actions.hurt and self.hurt_sprites.end_of_loop:
+            self.actions.idle = True
 
 class Arrow(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, orientation):
@@ -343,29 +206,29 @@ class Arrow(pygame.sprite.Sprite):
 
 
 class Enemy(pygame.sprite.Sprite):
-    def __init__(self, x, y, width, height, arrow_list, mc_list):
+    def __init__(self, x, y, width, height, mc_list, arrow_list):
         super().__init__()
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.arrow_list = arrow_list
+
         self.mc_list = mc_list
-        self.actions = {
-            "dead" : False,
-            "walk" : True,
-            "attack" : False,
-            "hit" : False
-        }
+        self.arrow_list = arrow_list
+
+        self.actions = Action()
+        self.actions.walk = True
+
         self.damage = 5
         self._orientation = "orig"
         self._vel = 3
+
         self.health = 10
 
         # SPRITES
 
         self.walk_sprites = Animator("sprites/Skeleton Walk.png", number_of=13, sheet=True, **PLAYER_COMMON_KWARGS)
-        self.attack_sprites = Animator("sprites/Skeleton Attack.png", number_of=18, sheet=True,**PLAYER_COMMON_KWARGS)
+        self.attack_sprites = Animator("sprites/Skeleton Attack.png", number_of=18, sheet=True, **PLAYER_COMMON_KWARGS)
         self.dead_sprites = Animator("sprites/Skeleton Dead.png", number_of=15, sheet=True, **PLAYER_COMMON_KWARGS)
         self.hit_sprites = Animator("sprites/Skeleton Hit.png", number_of=8, sheet=True, **PLAYER_COMMON_KWARGS)
 
@@ -408,22 +271,22 @@ class Enemy(pygame.sprite.Sprite):
 
     @property
     def image(self):
-        if self.actions["dead"]:
+        if self.actions.dead:
             return next(self.dead_sprites[self.orientation])
 
-        elif self.actions["attack"]:
+        elif self.actions.attack:
             return next(self.attack_sprites[self.orientation])
 
-        elif self.actions["walk"]:
+        elif self.actions.walk:
             return next(self.walk_sprites[self.orientation])
         
-        elif self.actions["hit"]:
+        elif self.actions.hit:
             return next(self.hit_sprites[self.orientation])
 
 
     @property
     def rect(self):
-        if self.actions["attack"]:
+        if self.actions.attack:
             return pygame.Rect(self.x-10, self.y-9, self.width+8, self.height)
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
@@ -435,53 +298,37 @@ class Enemy(pygame.sprite.Sprite):
             if self.x < self.width:
                 self.orientation = "orig"
 
-            self.actions["walk"] = True
-            self.actions["attack"] = False
-
-
-        if self.actions["walk"]:
-            self.x += self.vel
+            self.actions.walk = True
+            self.actions.attack = False
 
         for arrow in pygame.sprite.spritecollide(self, self.arrow_list, 1):
-            
             if self.health > 0:
-                self.actions["hit"] = True
-                self.actions["dead"] = False
+                self.actions.hit = True
                 self.health -= arrow.damage
             else:
-                self.actions["dead"] = True
-                self.actions["hit"] = False
+                self.actions.dead = True
 
-            self.actions["walk"] = False
+            self.actions.walk = False 
 
-        for mc in pygame.sprite.spritecollide(self, self.mc_list, 0):
-            print(mc.health)
-            self.actions["attack"] = True
-            self.actions["dead"] = False
-            self.actions["walk"] = False
-            self.actions["hit"] = False
-
-            if mc.actions["left"] and self.orientation == "flip-h" and mc.x > self.x:
-                self.orientation = "orig"
-            elif mc.actions["right"] and self.orientation == "orig" and mc.x < self.x:
-                self.orientation = "flip-h"
-
+        if self.actions.walk:
+            self.x += self.vel
 
         if self.dead_sprites.end_of_loop:
             self.kill()
 
         if self.hit_sprites.end_of_loop:
-            self.actions["hit"] = False
-            self.actions["walk"] = True
+            self.actions.walk = True
 
         if self.attack_sprites.end_of_loop:
             mc_list = pygame.sprite.spritecollide(self, self.mc_list, 0)
+            
             if not mc_list:
-                self.actions["attack"] = False
-                self.actions["walk"] = True
+                self.actions.walk = True
 
             else:
-                mc_list[0].health -= self.damage
+                mc = mc_list[0]
+                mc.health -= self.damage
+                mc.actions.hurt = True
             
             
             
