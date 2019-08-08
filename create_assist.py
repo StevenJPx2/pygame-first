@@ -8,13 +8,14 @@ DELAY_FOR_MULTIPLE = 20
 class Animator(object):
 
     def __init__(self, file_desc, format=None, number_of=1, start_from=0, flip_h=False, flip_v=False, 
-    multiple=False, loop=True, scale=None, sheet=False):
+    multiple=False, loop=True, scale=None, sheet=False, random=True):
  
         self.multiple = multiple
         self.selected_delay = datetime.datetime.now()
         self.loop = loop
         self.orientation = "orig"
         self.len = number_of
+        self.random = random
 
         if format:
             if self.multiple:
@@ -96,7 +97,7 @@ class Animator(object):
                         self.sprite_objects["orig"].append(sprite_collect.copy())
                         x -= sprite_width
 
-            if scale: 
+            if scale == "2x": 
                 self.sprite_objects["orig"] = list(map(pygame.transform.scale2x, self.sprite_objects["orig"])) 
 
             elif type(scale) is tuple and len(scale) == 2:            
@@ -145,18 +146,18 @@ class Animator(object):
 
     def __return_iter(self):
         if self.multiple:
-            if (datetime.datetime.now() - self.selected_delay).seconds >= DELAY_FOR_MULTIPLE:
+            if self.random and (datetime.datetime.now() - self.selected_delay).seconds >= DELAY_FOR_MULTIPLE:
                 self.selected = random.randint(0, len(self.sprite_objects)-1)
                 self.selected_delay = datetime.datetime.now()
+            
+            elif not self.random:
+                if self.selected < len(self.sprite_objects)-1: self.selected += 1
+                else: self.selected = 0
 
-            out = typed_list([iter(typed_list(i, type=self.orientation)) for i in self.sprite_orientation], type=self.orientation)
-            # for i in self.sprite_orientation:
-            #     out.append(iter(typed_list(i, type=self.orientation)))
-            return out
+            return typed_list([iter(typed_list(i, type=self.orientation)) for i in self.sprite_orientation], type=self.orientation)
         
         else:
-            out = iter(self.sprite_orientation)
-            return out
+            return iter(self.sprite_orientation)
 
     def refresh(self): self.sprite_objects_iterate = self.__return_iter()
         

@@ -30,12 +30,20 @@ clock = pygame.time.Clock()
 bg = pygame.transform.scale(pygame.image.load("sprites/Background.png"), dim)
 game_objects.dim = dim
 
-
+def display_health(man, x=30, y=30):
+    if not man.actions.dead:
+        win.blit(man.display_health(), (x,y))
+    elif man.actions.dead and man.die_sprites.end_of_loop:
+        man.kill()
+        del man
 
 def redraw_game_window():
     win.blit(bg, (0,0))
+    display_health(man)
+
     sprites_list.update()
     sprites_list.draw(win)
+
     arrow_list.update()
     arrow_list.draw(win)
 
@@ -44,13 +52,14 @@ def redraw_game_window():
 
 def collision_detect():
     for enemy in spritecollide(man, enemy_list, 0):
-        print(man.health)
-        enemy.actions.attack = True
+        if not enemy.actions.dead:
+            if not (man.actions.dead):
+                enemy.actions.attack = True
 
-        if man.orientation == "flip-h" and enemy.orientation == "flip-h" and man.x > enemy.x:
-            enemy.orientation = "orig"
-        elif man.orientation == "orig" and enemy.orientation == "orig" and man.x < enemy.x:
-            enemy.orientation = "flip-h"
+            if man.orientation == "flip-h" and enemy.orientation == "flip-h" and man.x > enemy.x:
+                enemy.orientation = "orig"
+            elif man.orientation == "orig" and enemy.orientation == "orig" and man.x < enemy.x:
+                enemy.orientation = "flip-h"
 
 
     # CANNOT DO ARROW-ENEMY COLLISION IN THIS LOOP
@@ -87,18 +96,18 @@ def key_press_actions():
         man.s_actions.none = True
         man.actions.crouch = True
 
-    elif not (man.actions.fall or man.actions.jump):
+    elif not any([man.actions.fall, man.actions.jump, man.actions.stand]):
         man.s_actions.none = True
         man.actions.idle = True
 
     if_walk = any(filter(lambda x: x in man.actions.__dict__, exception_actions))
 
-    if keys[K_LEFT] or keys[K_a]:
+    if (keys[K_LEFT] or keys[K_a]):
         man.s_actions.left = True
         if if_walk: 
             man.actions.walk = True
 
-    elif keys[K_RIGHT] or keys[K_d]:
+    elif (keys[K_RIGHT] or keys[K_d]):
         man.s_actions.right = True
         if if_walk:         
             man.actions.walk = True

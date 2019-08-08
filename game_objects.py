@@ -6,8 +6,7 @@ from create_assist import Animator, Action
 
 # PLAYER GLOBAL VARIABLES
 JUMP_HEIGHT = 7
-SLIDE_COUNT = 20
-SLIDE_READY = 20
+SLIDE_COUNT = 10
 PLAYER_COMMON_KWARGS = {
     "flip_h" : True,
     "scale" : "2x"
@@ -34,18 +33,23 @@ def del_dim(self):
 class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, arrow_list):
         super().__init__()
+
         self.x = x
         self.y = y
         self.width = width
         self.height = height
-        self.vel = 7
+
         self.arrow_list = arrow_list
+
+        self.vel = 7
         self.health = 20
+
         self.actions = Action()
         self.s_actions = Action()
+
         self.jump_count = JUMP_HEIGHT
         self.slide_count = SLIDE_COUNT
-        self.slide_ready = SLIDE_READY
+
         self.orientation = "orig"
 
         #sprites
@@ -61,8 +65,11 @@ class Player(pygame.sprite.Sprite):
         self.stand_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"stand"}, number_of=3, **PLAYER_COMMON_KWARGS)
         self.bow_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow"}, number_of=9, **PLAYER_COMMON_KWARGS)
         self.bow_jump_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"bow-jump"}, number_of=6, **PLAYER_COMMON_KWARGS)
-        self.hurt_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"hurt"}, number_of=2, loop=False, **PLAYER_COMMON_KWARGS)
+        self.hurt_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"hurt"}, number_of=2, loop=True, **PLAYER_COMMON_KWARGS)
         self.die_sprites = Animator("sprites/adventurer-{z}-0{index}.png", format={"z":"die"}, number_of=7, loop=False, **PLAYER_COMMON_KWARGS)
+
+        self.health_sprite = Animator("sprites/health-bar.png", scale="2x")
+        self.health_bar_sprite = Animator("sprites/health-bar-back.png", scale="2x")
 
     @property
     def image(self):
@@ -109,6 +116,15 @@ class Player(pygame.sprite.Sprite):
     def rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
+    def display_health(self, x=0, y=0):
+        health_block = next(self.health_sprite["orig"])
+        health_bar_sprite = next(self.health_bar_sprite["orig"]).copy()
+        width = health_block.get_width()
+        full_width = width * self.health
+
+        health_bar_sprite.blits([(health_block, (8+i, 20)) for i in range(0, full_width, width)], 0)
+        return health_bar_sprite
+
     def update(self):
         if self.health <= 0:
             self.actions.dead = True
@@ -127,7 +143,12 @@ class Player(pygame.sprite.Sprite):
 
         if any([self.actions.fall, self.actions.jump_draw_bow, self.actions.jump]):
             if self.jump_count >= -JUMP_HEIGHT:
-                neg = -1 if self.jump_count < 0 else 1
+                if self.jump_count < 0:
+                    neg = -1
+                    if not self.actions.jump_draw_bow:
+                        self.actions.fall = True
+                else:
+                    neg = 1
                 self.y -= pow(self.jump_count, 2) * 0.5 * neg
                 self.jump_count -= 1
 
@@ -152,11 +173,24 @@ class Player(pygame.sprite.Sprite):
                 else:
                     self.actions.idle = True
 
-        if self.actions.dead and self.die_sprites.end_of_loop:
-            self.kill()
+        
 
         if self.actions.hurt and self.hurt_sprites.end_of_loop:
             self.actions.idle = True
+
+        if self.actions.slide:
+            if self.slide_count <= 0:
+               self.slide_count = SLIDE_COUNT
+               self.actions.stand = True
+               self.s_actions.none = True
+            else:
+                self.slide_count -= 1
+
+        if self.actions.stand:
+            self.s_actions.none = True
+            if self.stand_sprites.end_of_loop:
+                self.actions.idle = True
+
 
 class Arrow(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, orientation):
@@ -166,7 +200,7 @@ class Arrow(pygame.sprite.Sprite):
         self.width = width
         self.height = height
         self.orientation = orientation
-        self._vel = 6
+        self._vel = 10
         self.damage = 3
 
         # SPRITES
@@ -211,7 +245,7 @@ class Enemy(pygame.sprite.Sprite):
         self.x = x
         self.y = y
         self.width = width
-        self.height = height
+        self.height = height+4
 
         self.mc_list = mc_list
         self.arrow_list = arrow_list
@@ -232,6 +266,7 @@ class Enemy(pygame.sprite.Sprite):
         self.dead_sprites = Animator("sprites/Skeleton Dead.png", number_of=15, sheet=True, **PLAYER_COMMON_KWARGS)
         self.hit_sprites = Animator("sprites/Skeleton Hit.png", number_of=8, sheet=True, **PLAYER_COMMON_KWARGS)
 
+        self.health_sprite = Animator("sprites/health-bar.png")
 
     @property
     def vel(self):
@@ -272,16 +307,23 @@ class Enemy(pygame.sprite.Sprite):
     @property
     def image(self):
         if self.actions.dead:
-            return next(self.dead_sprites[self.orientation])
+            image = next(self.dead_sprites[self.orientation])
 
         elif self.actions.attack:
-            return next(self.attack_sprites[self.orientation])
+            image = next(self.attack_sprites[self.orientation])
 
         elif self.actions.walk:
-            return next(self.walk_sprites[self.orientation])
+            image = next(self.walk_sprites[self.orientation])
         
         elif self.actions.hit:
-            return next(self.hit_sprites[self.orientation])
+            image = next(self.hit_sprites[self.orientation])
+
+        image = image.copy()
+        health = next(self.health_sprite["orig"])
+        width = health.get_width()
+        full_width = width * self.health
+        image.blits([(health, (i, -4)) for i in range(0, full_width, width)], 0)
+        return image
 
 
     @property
@@ -328,7 +370,8 @@ class Enemy(pygame.sprite.Sprite):
             else:
                 mc = mc_list[0]
                 mc.health -= self.damage
-                mc.actions.hurt = True
+                if not any([mc.actions.jump, mc.actions.fall, mc.actions.dead]):
+                    mc.actions.hurt = True
             
             
             
