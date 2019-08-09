@@ -321,8 +321,9 @@ class Enemy(pygame.sprite.Sprite):
         image = image.copy()
         health = next(self.health_sprite["orig"])
         width = health.get_width()
-        full_width = width * self.health
-        image.blits([(health, (i, -4)) for i in range(0, full_width, width)], 0)
+        full_width = width * (self.health)
+        print(full_width, self.health)
+        image.blits([(health, (10+i, -4)) for i in range(0, full_width, width)], 0)
         return image
 
 
@@ -347,8 +348,7 @@ class Enemy(pygame.sprite.Sprite):
             if self.health > 0:
                 self.actions.hit = True
                 self.health -= arrow.damage
-            else:
-                self.actions.dead = True
+                if self.health < 0 : self.actions.dead = True
 
             self.actions.walk = False 
 
