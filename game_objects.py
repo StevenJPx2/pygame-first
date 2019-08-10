@@ -1,8 +1,11 @@
 import pygame
 from pygame.color import *
 from math import pow
+import os
 
 from create_assist import Animator, Action
+
+
 
 # PLAYER GLOBAL VARIABLES
 JUMP_HEIGHT = 7
@@ -43,6 +46,7 @@ class Player(pygame.sprite.Sprite):
 
         self.vel = 7
         self.health = 20
+        self.score = 0
 
         self.actions = Action()
         self.s_actions = Action()
@@ -116,7 +120,7 @@ class Player(pygame.sprite.Sprite):
     def rect(self):
         return pygame.Rect(self.x, self.y, self.width, self.height)
 
-    def display_health(self, x=0, y=0):
+    def display_health(self):
         health_block = next(self.health_sprite["orig"])
         health_bar_sprite = next(self.health_bar_sprite["orig"]).copy()
         width = health_block.get_width()
@@ -124,6 +128,11 @@ class Player(pygame.sprite.Sprite):
 
         health_bar_sprite.blits([(health_block, (8+i, 20)) for i in range(0, full_width, width)], 0)
         return health_bar_sprite
+
+    def display_score(self):
+        font = pygame.font.Font("fonts/visitor1.ttf", 30)
+        font_surface = font.render(f"SCORE: {self.score}", 0, (0,0,0))
+        return (font_surface, font_surface.get_width())
 
     def update(self):
         if self.health <= 0:
@@ -322,7 +331,6 @@ class Enemy(pygame.sprite.Sprite):
         health = next(self.health_sprite["orig"])
         width = health.get_width()
         full_width = width * (self.health)
-        print(full_width, self.health)
         image.blits([(health, (10+i, -4)) for i in range(0, full_width, width)], 0)
         return image
 
@@ -356,6 +364,7 @@ class Enemy(pygame.sprite.Sprite):
             self.x += self.vel
 
         if self.dead_sprites.end_of_loop:
+            self.mc_list.sprites()[0].score += 5
             self.kill()
 
         if self.hit_sprites.end_of_loop:

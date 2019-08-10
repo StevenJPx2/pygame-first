@@ -37,9 +37,18 @@ def display_health(man, x=30, y=30):
         man.kill()
         del man
 
+def display_score(man, x=560, y=30):
+    if not man.actions.dead:
+        score, width = man.display_score()
+        win.blit(score, (x-(width-100),y))
+    elif man.actions.dead and man.die_sprites.end_of_loop:
+        man.kill()
+        del man
+
 def redraw_game_window():
     win.blit(bg, (0,0))
     display_health(man)
+    display_score(man)
 
     sprites_list.update()
     sprites_list.draw(win)
@@ -72,11 +81,11 @@ def key_press_actions():
 
     exception_actions = ["crouch", "idle", "draw_bow", "hurt"]
 
-    if (keys[K_LEFT] and keys[K_DOWN]) or (keys[K_a] and keys[K_LSHIFT]):
+    if (keys[K_LEFT] and keys[K_DOWN]) or (keys[K_a] and keys[K_LSHIFT]) and not (man.actions.jump or man.actions.fall):
         man.s_actions.left = True
         man.actions.slide = True
 
-    elif (keys[K_RIGHT] and keys[K_DOWN]) or (keys[K_d] and keys[K_LSHIFT]):
+    elif (keys[K_RIGHT] and keys[K_DOWN]) or (keys[K_d] and keys[K_LSHIFT]) and not (man.actions.jump or man.actions.fall):
         man.s_actions.right = True
         man.actions.slide = True
 
@@ -92,7 +101,7 @@ def key_press_actions():
         man.s_actions.none = True
         man.actions.draw_bow = True
     
-    elif keys[K_DOWN] or keys[K_LSHIFT]:
+    elif keys[K_DOWN] or keys[K_LSHIFT] and not (man.actions.jump or man.actions.fall):
         man.s_actions.none = True
         man.actions.crouch = True
 
@@ -139,6 +148,12 @@ while run:
         else:
             if not collision_detect():
                 key_press_actions()
+            
+            if len(enemy_list) < ENEMY_COUNT:
+                __enemy = Enemy(random.randint(40, 660), GROUND_LEVEL, 64, 64, man_list, arrow_list)
+                enemy_list.add(__enemy)
+                sprites_list.add(__enemy)
+
 
     redraw_game_window()
 
