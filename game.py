@@ -18,7 +18,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 
 # MAIN GLOBAL VARIABLES
 FRAMERATE = 24
-ENEMY_COUNT = 2
+ENEMY_COUNT = 4
 WIN_WIDTH = 700
 WIN_HEIGHT = 500
 GROUND_LEVEL = 390
@@ -37,7 +37,7 @@ def display_health(man, x=30, y=30):
         man.kill()
         del man
 
-def display_score(man, x=560, y=30):
+def display_score(man, x=560, y=40):
     if not man.actions.dead:
         score, width = man.display_score()
         win.blit(score, (x-(width-100),y))
@@ -144,7 +144,7 @@ while run:
 
     for event in pygame.event.get():
         keys = pygame.key.get_pressed()
-        if event.type == pygame.QUIT or keys[pygame.K_ESCAPE]:run = False
+        if event.type == pygame.QUIT or keys[pygame.K_ESCAPE]: run = False
         else:
             if not collision_detect():
                 key_press_actions()
